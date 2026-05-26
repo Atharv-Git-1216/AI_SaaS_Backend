@@ -9,7 +9,6 @@ class Settings(BaseSettings):
     JWT_SECRET_KEY: str
     JWT_ALGORITHM: str = "HS256"
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 30
-    FERNET_SECRET_KEY: str
     
     # AI Provider
     GEMINI_API_KEY: str
