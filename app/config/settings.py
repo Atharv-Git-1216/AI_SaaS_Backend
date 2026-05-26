@@ -8,7 +8,7 @@ class Settings(BaseSettings):
     # Security
     JWT_SECRET_KEY: str
     JWT_ALGORITHM: str = "HS256"
-    ACCESS_TOKEN_EXPIRE_MINUTES: int = 30
+    ACCESS_TOKEN_EXPIRE_MINUTES: int = 60
     
     # AI Provider
     GEMINI_API_KEY: str
@@ -23,3 +23,6 @@ def get_settings() -> Settings:
     Using lru_cache ensures we only read the .env file once.
     """
     return Settings()
+
+# THE CRITICAL FIX: Instantiate the settings variable so session.py can actually import it
+settings = get_settings()

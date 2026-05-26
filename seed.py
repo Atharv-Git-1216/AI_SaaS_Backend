@@ -1,55 +1,53 @@
 import asyncio
-from app.database.session import SessionLocal
+from sqlalchemy.future import select
+from app.database.session import get_db
 from app.models.base import Role
 
 async def seed_roles():
-    print("Connecting to the database...")
-    async with SessionLocal() as db:
-        # 1. FREE TIER ($0)
-        free_role = Role(
-            name="free",
-            description="Default tier. 500 credits/mo.",
-            permissions={
-                "tools": ["chat"], 
-                "admin_access": False
-            }
-        )
+    print("Connecting to the live Supabase database...")
+    
+    async for db in get_db():
+        roles_data = [
+            {"role_name": "free", "permissions": {"tools": ["chat"], "admin_access": False}},
+            {"role_name": "starter", "permissions": {"tools": ["chat", "short_content"], "admin_access": False}},
+            {"role_name": "pro", "permissions": {"tools": ["chat", "short_content", "image_generation", "long_form_content"], "admin_access": False}},
+            {"role_name": "enterprise", "permissions": {"tools": ["chat", "short_content", "image_generation", "long_form_content"], "admin_access": True}}
+        ]
+
+        # 1. Fetch ALL roles
+        result = await db.execute(select(Role))
+        all_roles = result.scalars().all()
+        existing_roles = {role.role_name: role for role in all_roles}
+
+        # THE MAGIC FIX: Find the absolute highest ID currently in the database
+        current_max_id = max([role.id for role in all_roles]) if all_roles else 0
+
+        # 2. Process everything safely in memory
+        for role_info in roles_data:
+            if role_info["role_name"] in existing_roles:
+                print(f"Role '{role_info['role_name']}' already exists. Updating permissions...")
+                existing_roles[role_info["role_name"]].permissions = role_info["permissions"]
+            else:
+                print(f"Creating new role '{role_info['role_name']}'...")
+                current_max_id += 1  # Manually step up the ID
+                
+                # We FORCE the ID here, completely bypassing the broken Postgres counter
+                new_role = Role(
+                    id=current_max_id, 
+                    role_name=role_info["role_name"], 
+                    permissions=role_info["permissions"]
+                )
+                db.add(new_role)
+
+        # 3. Perform a single, atomic commit at the very end
+        try:
+            await db.commit()
+            print("✅ Successfully synchronized roles with the database!")
+        except Exception as e:
+            print(f"Failed to commit. Rolling back to protect database. Error: {e}")
+            await db.rollback()
         
-        # 2. STARTER TIER ($12)
-        starter_role = Role(
-            name="starter",
-            description="Starter tier. 3,000 credits/mo.",
-            permissions={
-                "tools": ["chat", "short_content"], 
-                "admin_access": False
-            }
-        )
-
-        # 3. PRO TIER ($39)
-        pro_role = Role(
-            name="pro",
-            description="Pro tier. 12,000 credits/mo.",
-            permissions={
-                "tools": ["chat", "short_content", "image_generation", "long_form_content"],
-                "admin_access": False
-            }
-        )
-
-        # 4. ENTERPRISE TIER (Custom)
-        enterprise_role = Role(
-            name="enterprise",
-            description="Unlimited custom tier.",
-            permissions={
-                "tools": ["chat", "short_content", "image_generation", "long_form_content"],
-                "admin_access": True 
-            }
-        )
-
-        # Add them to the session and commit to Supabase
-        db.add_all([free_role, starter_role, pro_role, enterprise_role])
-        await db.commit()
-        print("✅ Successfully seeded Free, Starter, Pro, and Enterprise roles!")
+        break 
 
 if __name__ == "__main__":
-    # This tells Python to actually execute the async function when you run the file
     asyncio.run(seed_roles())
