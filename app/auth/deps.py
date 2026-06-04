@@ -7,7 +7,6 @@ from app.models.base import User
 from app.auth.jwt import decode_token
 
 # Instructs FastAPI & Swagger to expect a standard Authorization: Bearer <token> header
-# and renders a simple text input box in the UI.
 security = HTTPBearer()
 
 async def get_current_user(
@@ -24,7 +23,6 @@ async def get_current_user(
         headers={"WWW-Authenticate": "Bearer"},
     )
     
-    # Extract the raw string token from the injected credentials object
     token = credentials.credentials
     
     payload = decode_token(token)
@@ -35,7 +33,6 @@ async def get_current_user(
     if user_id is None:
         raise credentials_exception
 
-    # Execute async database query
     result = await db.execute(select(User).where(User.id == int(user_id)))
     user = result.scalars().first()
     
@@ -44,11 +41,32 @@ async def get_current_user(
         
     return user
 
+# ---------------------------------------------------------
+# HIERARCHY TIER 1: STANDARD ADMINS & SUPER ADMINS
+# ---------------------------------------------------------
+async def require_admin(
+    current_user: User = Depends(get_current_user)
+) -> User:
+    """
+    Allows access if the user is an Admin (e.g., ID 4) OR a Super Admin (ID 5).
+    Protects standard dashboard viewing routes.
+    """
+    # NOTE: Change '4' if your Admin role ID in the database is different!
+    if current_user.role_id not in [4, 5]:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Admin privileges required to access this subsystem."
+        )
+    return current_user
+
+# ---------------------------------------------------------
+# HIERARCHY TIER 2: SUPER ADMINS ONLY
+# ---------------------------------------------------------
 async def require_super_admin(
     current_user: User = Depends(get_current_user)
 ) -> User:
     """
-    Strict security dependency that verifies the current user holds the Super Admin role.
+    Strict security dependency that verifies the current user holds the Super Admin role (5).
     Any endpoint injecting this dependency is completely invisible/inaccessible to normal users.
     """
     if current_user.role_id != 5:
