@@ -36,20 +36,19 @@ def create_app() -> FastAPI:
     app.state.limiter = limiter
     app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 
-    # 4. Security: CORS Configuration 
-    # (Set to "*" for your local screen recording demo so it doesn't block you)
-   origins = [
-    "http://localhost:5173", 
-    "https://magical-bombolone-f9fbf8.netlify.app/"
-]
+# 4. Security: CORS Configuration 
+    origins = [
+        "http://localhost:5173", 
+        "https://magical-bombolone-f9fbf8.netlify.app" # <-- REMOVED the trailing slash here!
+    ]
 
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=origins,
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
+    app.add_middleware(
+        CORSMiddleware,
+        allow_origins=origins,
+        allow_credentials=True,
+        allow_methods=["*"],
+        allow_headers=["*"],
+    )
     
 
     # 5. Auto-Redirect to the Beautiful UI
